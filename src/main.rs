@@ -21,18 +21,23 @@ fn main() -> Result<()> {
         timeout: 500,
     };
 
-    let (devices,): (Vec<dbus::Path<'static>>,) =
+    let (devices,): (Vec<dbus::Path>,) =
         cp_server.method_call("org.freedesktop.UPower", "EnumerateDevices", ())?;
 
-    loop {
-        for device in &devices {
-            println!("refreshing {:?}", device);
-            let cp = ConnPath {
+    let connpaths: Vec<_> = devices
+        .into_iter()
+        .filter_map(|dev| {
+            Some(ConnPath {
                 conn: &conn,
-                dest: BusName::new("org.freedesktop.UPower").map_err(|err| anyhow::anyhow!(err))?,
-                path: device.clone(),
+                dest: BusName::new("org.freedesktop.UPower").ok()?,
+                path: dev,
                 timeout: 500,
-            };
+            })
+        })
+        .collect();
+
+    loop {
+        for cp in &connpaths {
             cp.method_call("org.freedesktop.UPower.Device", "Refresh", ())?;
         }
         sleep(refresh_time);
